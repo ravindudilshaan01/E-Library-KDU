@@ -348,6 +348,94 @@ hr { border-color: #DAF0E5 !important; margin: 18px 0 !important; }
     to   { transform: scale(1.8); opacity: 0; }
 }
 
+/* Animated Button - from Uiverse.io */
+.animated-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 36px;
+  border: 4px solid transparent;
+  font-size: 16px;
+  background-color: #2D6A4F;
+  border-radius: 100px;
+  font-weight: 600;
+  color: #F0FDF4;
+  box-shadow: 0 0 0 2px #2D6A4F;
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.animated-button svg {
+  position: absolute;
+  width: 24px;
+  fill: #F0FDF4;
+  z-index: 9;
+  transition: all 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.animated-button .arr-1 {
+  right: 16px;
+}
+
+.animated-button .arr-2 {
+  left: -25%;
+}
+
+.animated-button .circle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 20px;
+  height: 20px;
+  background-color: #40916C;
+  border-radius: 50%;
+  opacity: 0;
+  transition: all 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.animated-button .text {
+  position: relative;
+  z-index: 1;
+  transform: translateX(-12px);
+  transition: all 0.8s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.animated-button:hover {
+  box-shadow: 0 0 0 12px transparent;
+  color: #FFFFFF;
+  border-radius: 12px;
+}
+
+.animated-button:hover .arr-1 {
+  right: -25%;
+}
+
+.animated-button:hover .arr-2 {
+  left: 16px;
+}
+
+.animated-button:hover .text {
+  transform: translateX(12px);
+}
+
+.animated-button:hover svg {
+  fill: #F0FDF4;
+}
+
+.animated-button:active {
+  scale: 0.95;
+  box-shadow: 0 0 0 4px #40916C;
+}
+
+.animated-button:hover .circle {
+  width: 220px;
+  height: 220px;
+  opacity: 1;
+}
+
 /* ══════════════════════════════════════════
    UIVERSE STAT CARDS — adapted to green theme
    card1 = main stats (expanding circle hover)
@@ -762,8 +850,10 @@ def main():
 
 def page_dashboard(lib):
     st.markdown(f"""
-    <div style="display:flex;align-items:flex-end;justify-content:space-between;
-        margin-bottom:28px;padding-bottom:18px;border-bottom:1px solid #DAF0E5;">
+    <div style="position:relative;margin-bottom:28px;padding-bottom:18px;border-bottom:1px solid #DAF0E5;">
+      <div style="position:absolute;top:0;right:0;font-size:12px;color:#000000;font-family:'Inter',sans-serif;">
+        {datetime.now().strftime("%A, %d %B %Y")}
+      </div>
       <div>
         <div style="font-family:'Sora',sans-serif;font-size:26px;color:#1A3D2E;">
                     Library Home
@@ -771,9 +861,6 @@ def page_dashboard(lib):
         <div style="font-size:13px;color:#7BA892;margin-top:5px;">
                     Good {"morning" if datetime.now().hour < 12 else "afternoon"} — monitor circulation, stock, and returns in one place.
         </div>
-      </div>
-      <div style="font-size:12px;color:#A8C4B6;font-family:'Inter',sans-serif;">
-        {datetime.now().strftime("%A, %d %B %Y")}
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -958,9 +1045,18 @@ def page_dashboard(lib):
     st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns([3, 1, 3])
     with c2:
-        if st.button("Open Full Inventory", use_container_width=True, type="primary"):
-            st.session_state.page = "Inventory"
-            st.rerun()
+        st.markdown("""
+        <button class="animated-button" onclick="window.location.href='?page=Inventory'">
+          <svg class="arr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <span class="text">Open Full Inventory</span>
+          <svg class="arr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+          <div class="circle"></div>
+        </button>
+        """, unsafe_allow_html=True)
 
     st.markdown(f"""
     <div style="text-align:center;color:#C4D9CC;font-size:11px;
