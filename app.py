@@ -2,6 +2,14 @@
 Kothalawala Library Management System
 Theme  : Ivory & Forest Green
 Layout : Icon Sidebar (200px)
+
+This is the main frontend application built with Streamlit.
+It provides the user interface for:
+- Dashboard with statistics
+- Inventory management
+- Adding new books
+- Searching and borrowing books
+- Processing returns and calculating late fees
 """
 
 import streamlit as st
@@ -10,10 +18,10 @@ from datetime import datetime, timedelta
 import traceback
 import pandas as pd
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 # PAGE CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
+# Set up the basic Streamlit page configuration (title, icon, layout)
 st.set_page_config(
     page_title="Kothalawala E-Library",
     page_icon="📚",
@@ -25,34 +33,39 @@ st.set_page_config(
 # ─────────────────────────────────────────────────────────────────────────────
 # SESSION STATE
 # ─────────────────────────────────────────────────────────────────────────────
+# Streamlit "forgets" everything when page refreshes, so we use session_state
+# to remember things between user interactions (like sidebar selections, form data)
 if "lib" not in st.session_state:
     try:
+        # Initialize the database connection (connects to Firebase)
         st.session_state.lib   = LibraryManager()
         st.session_state.db_ok = True
     except Exception as e:
         st.session_state.db_ok    = False
         st.session_state.db_error = str(e)
 
+# Initialize page state variables (remember the current page, confirmations, etc.)
 for k, v in {
-    "page":           "Dashboard",
-    "confirm_add":    False,
-    "confirm_borrow": False,
-    "confirm_return": False,
-    "pending_book":   None,
-    "pending_borrow": None,
-    "add_ok":         None,
-    "borrow_ok":      None,
-    "return_ok":      None,
-    "ret_isbn":       "",
-    "ret_name":       "",
+    "page":           "Dashboard",  # Which page is user viewing
+    "confirm_add":    False,        # Waiting for add book confirmation?
+    "confirm_borrow": False,        # Waiting for borrow confirmation?
+    "confirm_return": False,        # Waiting for return confirmation?
+    "pending_book":   None,         # Book data waiting to be confirmed
+    "pending_borrow": None,         # Borrow data waiting to be confirmed
+    "add_ok":         None,         # Was book successfully added?
+    "borrow_ok":      None,         # Was borrow successful?
+    "return_ok":      None,         # Was return successful?
+    "ret_isbn":       "",           # ISBN being returned
+    "ret_name":       "",           # Name of person returning
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-# CSS
+# CSS STYLING
 # ─────────────────────────────────────────────────────────────────────────────
+# All the beautiful custom styling for the app (colors, fonts, animations, layout)
+# Theme colors: Forest Green (#2D6A4F) and Ivory (#EAEFEF)
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
@@ -87,7 +100,7 @@ section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
 }
 
 [data-testid="collapsedControl"] {
-    background-color: #1A3D2E !important;
+    background-color: #406093 !important;
     display: block !important;
     visibility: visible !important;
 }
@@ -166,8 +179,10 @@ section[data-testid="stSidebar"] button[data-baseweb="button"][kind="secondary"]
 section[data-testid="stSidebar"] button[kind="primary"],
 section[data-testid="stSidebar"] .stButton button[kind="primary"],
 section[data-testid="stSidebar"] button[data-baseweb="button"][kind="primary"] {
-    background: #2D6A4F !important;
-    background-color: #2D6A4F !important;
+    background: #406093
+  !important;
+    background-color: #406093
+  !important;
     background-image: none !important;
     color: #D8F3DC !important;
     font-weight: 600 !important;
@@ -218,7 +233,8 @@ section[data-testid="stSidebar"] button:hover::before {
     transition: all 0.16s ease !important;
 }
 .stButton > button[kind="primary"] {
-    background: #2D6A4F !important;
+    background: #406093
+  !important;
     color: #F0FDF4 !important;
     border: none !important;
 }
@@ -326,7 +342,8 @@ hr { border-color: #DAF0E5 !important; margin: 18px 0 !important; }
     width: 16px;
     border-radius: 50%;
     left: 0;
-    background: #2D6A4F;
+    background: #406093
+ ;
 }
 .elib-title::before {
     width: 18px;
@@ -357,7 +374,8 @@ hr { border-color: #DAF0E5 !important; margin: 18px 0 !important; }
   padding: 16px 36px;
   border: 4px solid transparent;
   font-size: 16px;
-  background-color: #2D6A4F;
+  background-color: #406093
+ ;
   border-radius: 100px;
   font-weight: 600;
   color: #F0FDF4;
@@ -589,12 +607,16 @@ div[data-testid="stForm"] button[type="submit"]:hover {
 </style>
 """, unsafe_allow_html=True)
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-# UI HELPERS
+# UI HELPERS - These are helper functions to make building the UI easier
 # ─────────────────────────────────────────────────────────────────────────────
+# Instead of writing HTML for every card/element, we call these functions
 
 def stat_row(items):
+    """
+    Display a row of stat cards (like "45 Books", "38 Available", etc.)
+    Makes the dashboard look beautiful with animated cards.
+    """
     # Map color hex → CSS class name for card1 variants
     color_class = {
         "#2D6A4F": "sc-green",
@@ -763,12 +785,21 @@ def step_bar(active):
             </div>
             """, unsafe_allow_html=True)
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-# SIDEBAR NAV
+# SIDEBAR NAVIGATION
 # ─────────────────────────────────────────────────────────────────────────────
+# This is the left sidebar with the menu buttons to navigate between pages
 
 def sidebar_nav():
+    """
+    Display the left navigation sidebar.
+    Allows user to switch between different pages:
+    - Home (Dashboard)
+    - Inventory
+    - Add Books
+    - Search & Borrow
+    - Returns & Fees
+    """
     with st.sidebar:
         st.markdown(
             '<div style="display:flex;align-items:center;gap:10px;padding:4px 4px 10px;">'
@@ -792,28 +823,31 @@ def sidebar_nav():
             unsafe_allow_html=True
         )
 
+        # Define the navigation menu items
         pages = [
-            ("Home",      "🏠", "Dashboard"),
+            ("Home",      "🏠", "Dashboard"),             # Label, Icon, Page key
             ("Inventory",      "📦", "Inventory"),
             ("Add Books",      "➕", "Add Books"),
             ("Search & Borrow","🔍", "Search & Borrow"),
             ("Returns & Fees", "↩️",  "Returns & Fees"),
         ]
 
+        # Create buttons for each page
         for label, icon, key in pages:
-            active = st.session_state.page == key
+            active = st.session_state.page == key  # Is this the current page?
             if st.button(
                 f"{icon}  {label}",
                 key="nav_" + key,
                 help=key,
-                type="primary" if active else "secondary",
+                type="primary" if active else "secondary",  # Highlight current page
                 use_container_width=True,
             ):
+                # Switch to this page when button is clicked
                 st.session_state.page           = key
                 st.session_state.confirm_add    = False
                 st.session_state.confirm_borrow = False
                 st.session_state.confirm_return = False
-                st.rerun()
+                st.rerun()  # Refresh the page
 
         st.markdown(
             f'<div style="position:fixed;bottom:16px;left:0;width:200px;text-align:center;'
@@ -822,37 +856,52 @@ def sidebar_nav():
             unsafe_allow_html=True
         )
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-# MAIN
+# MAIN FUNCTION - Routing and page selection
 # ─────────────────────────────────────────────────────────────────────────────
+# This is the main control center that shows the right page based on selection
 
 def main():
+    """
+    Main function that controls which page to show.
+    First checks if database is connected, then displays the selected page.
+    """
+    # Check if database connection is working
     if not st.session_state.get("db_ok", False):
         st.error("Database connection failed: " + st.session_state.get("db_error", "Unknown"))
         st.info("Ensure serviceAccountKey.json is present and Firestore is enabled.")
         return
 
+    # Show the sidebar navigation menu
     sidebar_nav()
-    lib  = st.session_state.lib
-    page = st.session_state.page
+    lib  = st.session_state.lib    # Get the database connection
+    page = st.session_state.page   # Get the current page user is on
 
-    if   page == "Dashboard":       page_dashboard(lib)
-    elif page == "Inventory":       page_inventory(lib)
-    elif page == "Add Books":       page_add_books(lib)
-    elif page == "Search & Borrow": page_search(lib)
-    elif page == "Returns & Fees":  page_returns(lib)
+    # Display the appropriate page based on selection
+    if   page == "Dashboard":       page_dashboard(lib)      # Show home/dashboard
+    elif page == "Inventory":       page_inventory(lib)      # Show all books
+    elif page == "Add Books":       page_add_books(lib)      # Show add book form
+    elif page == "Search & Borrow": page_search(lib)        # Show search and borrow
+    elif page == "Returns & Fees":  page_returns(lib)       # Show return and fee calculator
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DASHBOARD
+# DASHBOARD / HOME PAGE (Requirement 5)
 # ─────────────────────────────────────────────────────────────────────────────
+# This is the first page users see - shows library statistics and recent activity
 
 def page_dashboard(lib):
+    """
+    Display the main dashboard with:
+    - Key statistics (total books, available copies, active loans, fees)
+    - Alerts (books due soon, overdue, low stock)
+    - Recent borrowing activity
+    - Top authors and today's summary
+    """
     st.markdown(f"""
     <div style="position:relative;margin-bottom:28px;padding-bottom:18px;border-bottom:1px solid #DAF0E5;">
       <div style="position:absolute;top:0;right:0;font-size:12px;color:#000000;font-family:'Inter',sans-serif;">
-        {datetime.now().strftime("%A, %d %B %Y")}
+        {datetime.now().strftime("%A, %d %B %Y")}  <!-- Show current date -->
       </div>
       <div>
         <div style="font-family:'Sora',sans-serif;font-size:26px;color:#1A3D2E;">
@@ -866,8 +915,9 @@ def page_dashboard(lib):
     """, unsafe_allow_html=True)
 
     try:
-        inv = lib.get_inventory()
-        trans = lib.get_transaction_history()
+        # Get data from database
+        inv = lib.get_inventory()            # All books in catalog
+        trans = lib.get_transaction_history() # All borrow/return records
         now = datetime.now()
         today = now.date()
 
@@ -1065,12 +1115,19 @@ def page_dashboard(lib):
     </div>
     """, unsafe_allow_html=True)
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-# INVENTORY  (REQ 5)
+# INVENTORY PAGE (Requirement 5 - Inventory Dashboard)
 # ─────────────────────────────────────────────────────────────────────────────
+# Shows all books in the library with search/filter and CSV export
 
 def page_inventory(lib):
+    """
+    Display complete inventory of all books with:
+    - Search by title/author
+    - Filter by availability status
+    - Export to CSV
+    - Beautiful table showing all book details
+    """
     page_heading("Inventory Dashboard",
         "Title · Author · Available Quantity · Daily Late Return Fee")
     try:
@@ -1146,18 +1203,31 @@ def page_inventory(lib):
         st.error("Error loading inventory.")
         with st.expander("Details"): st.code(traceback.format_exc())
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-# ADD BOOKS  (REQ 1)
+# ADD BOOKS PAGE (Requirement 1 - Add Books)
 # ─────────────────────────────────────────────────────────────────────────────
+# Form for librarians to add new books to the catalog
 
 def page_add_books(lib):
+    """
+    Display form to add a new book to the library catalog.
+
+    Users fill in:
+    - Book title
+    - Author name
+    - ISBN (unique identifier)
+    - Number of copies
+    - Late return fee (Rs/day)
+
+    Shows success message after book is added.
+    """
     page_heading(
         "Add New Books",
         "Create new catalogue records with a modern inline form",
     )
 
     # ── Success screen ────────────────────────────────────────────────────────
+    # Show this if book was successfully added
     if st.session_state.add_ok:
         _, cc, _ = st.columns([1, 2, 1])
         with cc:
@@ -1227,11 +1297,14 @@ def page_add_books(lib):
         st.markdown("</div>", unsafe_allow_html=True)
 
     # ── Validation & save ────────────────────────────────────────────────────
+    # When user submits the form
     if submitted:
+        # Check that all required fields are filled
         if not title.strip() or not author.strip() or not isbn.strip():
             st.error("Please fill in all required fields: Title, Author, and ISBN.")
             return
         try:
+            # Attempt to add the book to database
             ok = lib.add_book(
                 Book(
                     title=title.strip(),
@@ -1241,6 +1314,7 @@ def page_add_books(lib):
                     available_quantity=int(qty),
                 )
             )
+            # If successful, show success message
             if ok:
                 st.session_state.add_ok = title.strip()
                 st.rerun()
@@ -1250,10 +1324,21 @@ def page_add_books(lib):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SEARCH & BORROW  (REQ 2 & 3)
+# SEARCH & BORROW PAGE (Requirements 2 & 3)
 # ─────────────────────────────────────────────────────────────────────────────
+# Search for books and process borrowing
 
 def page_search(lib):
+    """
+    Allow librarians to search for books and process borrowing.
+
+    Features:
+    - Search by title or author
+    - Display search results with availability
+    - Show late fee information
+    - Get borrower name and confirm borrow
+    - Update inventory quantity automatically
+    """
     page_heading("Search & Borrow",
         "Search availability by title or author · Borrowing reduces available quantity by 1")
 
@@ -1369,22 +1454,36 @@ def page_search(lib):
         st.error("An error occurred during search.")
         with st.expander("Details"): st.code(traceback.format_exc())
 
-
 # ─────────────────────────────────────────────────────────────────────────────
-# RETURNS & FEES  (REQ 4)
+# RETURNS & FEES PAGE (Requirement 4 - Late Fee Calculator)
 # ─────────────────────────────────────────────────────────────────────────────
+# Process book returns and calculate late fees
 
 def page_returns(lib):
+    """
+    Process book returns and calculate late fees.
+
+    Workflow:
+    1. Enter book ISBN and borrower name
+    2. Set borrow date and return date
+    3. System calculates:
+       - Days borrowed
+       - Days allowed (14 days)
+       - Days late (if applicable)
+       - Late fee = days_late × fee_per_day
+    4. Collect fee and mark as returned
+    """
     page_heading("Returns & Late Fee Calculator",
         "Process book returns · Late fee calculated automatically if return exceeds 2 weeks")
 
-    step_bar(3 if (st.session_state.confirm_return or st.session_state.return_ok) else 1)
-    st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
+    # ── Show different screens based on state ──────────────────────────────
 
+    # Screen 1: Show return success/fee
     if st.session_state.return_ok:
         rr = st.session_state.return_ok
         _, cc, _ = st.columns([1, 2, 1])
         with cc:
+            # Show if late fee is due
             if rr["fee"] > 0:
                 st.markdown(f"""
                 <div style="background:#FFFFFF;border-radius:14px;padding:30px;
@@ -1402,6 +1501,7 @@ def page_returns(lib):
                 </div>
                 """, unsafe_allow_html=True)
             else:
+                # Show if returned on time
                 success_box("Book Returned On Time",
                     f'Returned by <strong>{rr["name"]}</strong>.<br>Within the 14-day loan period — no late fees.')
                 st.balloons()
@@ -1410,6 +1510,7 @@ def page_returns(lib):
                 st.session_state.return_ok = None; st.rerun()
         return
 
+    # Screen 2: Confirm return
     if st.session_state.confirm_return:
         _, cc, _ = st.columns([1, 2, 1])
         with cc:
@@ -1420,9 +1521,11 @@ def page_returns(lib):
             with b1:
                 if st.button("Confirm Return", type="primary", use_container_width=True):
                     try:
+                        # Process the return in database
                         fee = lib.return_book(st.session_state.ret_isbn, st.session_state.ret_name)
                         st.session_state.confirm_return = False
                         if fee is not None:
+                            # Store result to show on success screen
                             st.session_state.return_ok = {"name": st.session_state.ret_name, "fee": fee}
                         else:
                             st.error("No active borrow record found for this ISBN and name.")
@@ -1434,6 +1537,7 @@ def page_returns(lib):
                     st.session_state.confirm_return = False; st.rerun()
         return
 
+    # Screen 3: Input form
     left, right = st.columns([1, 1])
     with left:
         card_open()
@@ -1457,9 +1561,10 @@ def page_returns(lib):
           Fee Preview
         </div>
         """, unsafe_allow_html=True)
+        # Calculate and preview the fee
         if borrow_date and return_date:
-            db = (return_date - borrow_date).days
-            dl = max(0, db - 14)
+            db = (return_date - borrow_date).days  # Days borrowed
+            dl = max(0, db - 14)  # Days late (0 if within 14 days)
             cc1, cc2, cc3 = st.columns(3)
             for col, val, label, accent in [
                 (cc1, db, "DAYS BORROWED", "#2D6A4F"),
@@ -1474,11 +1579,12 @@ def page_returns(lib):
                       <div style="font-size:9px;font-weight:600;color:#8BB09C;letter-spacing:1px;margin-top:5px;font-family:'Inter',sans-serif;">{label}</div>
                     </div>
                     """, unsafe_allow_html=True)
+            # Calculate fee if days are late
             if dl > 0 and isbn.strip():
                 try:
                     bk = lib.get_book_by_isbn(isbn.strip())
                     if bk:
-                        total = dl * bk["late_return_fee"]
+                        total = dl * bk["late_return_fee"]  # Calculate: days_late × fee_per_day
                         st.markdown(f"""
                         <div style="background:#FFFBEB;border-left:3px solid #D97706;border-radius:0 10px 10px 0;padding:18px;">
                           <div style="font-size:10.5px;font-weight:600;color:#92400E;letter-spacing:1px;margin-bottom:6px;font-family:'Inter',sans-serif;">LATE RETURN FEE</div>
@@ -1493,6 +1599,7 @@ def page_returns(lib):
             elif dl > 0:
                 st.warning("Enter the ISBN above to calculate the exact fee.")
             else:
+                # No late fees - returned on time
                 st.markdown("""
                 <div style="background:#F0FDF4;border-left:3px solid #40916C;border-radius:0 10px 10px 0;padding:18px;">
                   <div style="font-size:10.5px;font-weight:600;color:#166534;letter-spacing:1px;margin-bottom:6px;font-family:'Inter',sans-serif;">ON TIME</div>
@@ -1505,10 +1612,12 @@ def page_returns(lib):
     st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
     _, bc, _ = st.columns([2, 1, 2])
     with bc:
+        # Button to process the return
         if st.button("Process Return →", type="primary", use_container_width=True):
             if not isbn.strip() or not bname.strip():
                 st.error("Please enter both the Book ISBN and Borrower Name.")
             else:
+                # Set up confirmation screen
                 st.session_state.confirm_return = True
                 st.session_state.ret_isbn = isbn.strip()
                 st.session_state.ret_name = bname.strip()
@@ -1516,5 +1625,8 @@ def page_returns(lib):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# RUN THE APPLICATION
+# ─────────────────────────────────────────────────────────────────────────────
+# This is executed when you run: streamlit run app.py
 if __name__ == "__main__":
     main()
