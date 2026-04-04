@@ -1319,12 +1319,37 @@ def page_inventory(lib):
             st.info("No books yet."); return
 
         card_open("16px 20px")
-        f1, f2, f3 = st.columns([3, 2, 1])
+        
+        # ─────────────────────────────────────────────────────────────────────────────
+        # 🔍 FEATURE 1: AUTHOR FILTER DROPDOWN
+        # ─────────────────────────────────────────────────────────────────────────────
+        # Allows users to filter inventory by specific authors
+        # Purpose: Help users quickly find all books by a particular author
+        # Useful for librarians managing books by genre/author or patrons browsing specific authors
+        
+        # STEP 1: Extract all unique authors from the inventory
+        unique_authors = sorted(list(set([b.get("author", "Unknown") for b in inv if b.get("author")])))
+        authors_list = ["📚 All Authors"] + unique_authors  # Add "All Authors" as first option
+        
+        f1, f2, f3, f4 = st.columns([2.5, 1.8, 1.8, 1])
+        
         with f1:
             search = st.text_input("s", placeholder="Filter by title or author…", label_visibility="collapsed")
+        
         with f2:
-            status_f = st.selectbox("f", ["All Books", "Available", "Out of Stock"], label_visibility="collapsed")
+            # STEP 2: Display author filter dropdown
+            # Users can select a specific author to see only their books
+            selected_author = st.selectbox(
+                "f", 
+                authors_list,
+                label_visibility="collapsed",
+                help="Filter books by specific author"
+            )
+        
         with f3:
+            status_f = st.selectbox("f2", ["All Books", "Available", "Out of Stock"], label_visibility="collapsed")
+        
+        with f4:
             df_export = pd.DataFrame([{"Title": b["title"], "Author": b["author"], "ISBN": b["isbn"],
                 "Available Quantity": b["available_quantity"], "Daily Late Fee (Rs)": b["late_return_fee"]} for b in inv])
             st.download_button("Export CSV", data=df_export.to_csv(index=False),
@@ -1332,8 +1357,15 @@ def page_inventory(lib):
                 mime="text/csv", use_container_width=True)
         card_close()
 
+        # ─────────────────────────────────────────────────────────────────────────────
+        # Apply all filters
+        # ─────────────────────────────────────────────────────────────────────────────
         filtered = [b for b in inv if
+            # Text search filter (title or author)
             (not search or search.lower() in b["title"].lower() or search.lower() in b["author"].lower()) and
+            # Author dropdown filter
+            (selected_author == "📚 All Authors" or b.get("author") == selected_author) and
+            # Availability status filter
             not (status_f == "Available" and b["available_quantity"] == 0) and
             not (status_f == "Out of Stock" and b["available_quantity"] > 0)]
 
@@ -1351,19 +1383,61 @@ def page_inventory(lib):
           <span style="flex:1.5;font-size:11px;font-weight:600;color:#74C69D;letter-spacing:0.8px;text-transform:uppercase;text-align:right;">Status</span>
         </div>
         """, unsafe_allow_html=True)
+        
+        # ─────────────────────────────────────────────────────────────────────────────
+        # 🎨 FEATURE 2: STOCK LEVEL COLOR INDICATORS
+        # ─────────────────────────────────────────────────────────────────────────────
+        # Adds visual color-coding to rows based on stock levels
+        # Purpose: Helps at-a-glance inventory management by color-coding stock status
+        # Visual hierarchy: Green (healthy stock) → Yellow (low stock) → Red (out of stock)
+        
         for i, b in enumerate(filtered):
             qty = b["available_quantity"]
-            bg  = "#FFFFFF" if i % 2 == 0 else "#F9FCF9"
-            badge = ('<span style="background:#FEF2F2;color:#991B1B;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Out of Stock</span>' if qty == 0
-                else f'<span style="background:#FFFBEB;color:#92400E;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">Low ({qty})</span>' if qty <= 2
-                else f'<span style="background:#ECFDF5;color:#065F46;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">In Stock ({qty})</span>')
-            qty_color = "#065F46" if qty > 2 else ("#92400E" if qty > 0 else "#991B1B")
+            
+            # STEP 1: Determine the background color based on stock level
+            # Red background: Out of stock (qty = 0)
+            # Orange/Yellow background: Low stock (qty = 1-2) - needs attention
+            # Green background: Healthy stock (qty > 2) - normal
+            
+            if qty == 0:
+                # OUT OF STOCK - Critical status
+                row_bg = "#FEF2F2"  # Light red background
+                left_border_color = "#991B1B"  # Dark red border
+                qty_color = "#991B1B"
+                qty_font_size = "15px"
+                qty_font_weight = "700"
+            elif qty <= 2:
+                # LOW STOCK - Warning status (1-2 copies)
+                row_bg = "#FEF3C7"  # Light yellow background
+                left_border_color = "#F59E0B"  # Orange border
+                qty_color = "#92400E"
+                qty_font_size = "15px"
+                qty_font_weight = "700"
+            else:
+                # HEALTHY STOCK - Normal status (3+ copies)
+                row_bg = "#F0FDF4"  # Light green background
+                left_border_color = "#22C55E"  # Green border
+                qty_color = "#065F46"
+                qty_font_size = "14px"
+                qty_font_weight = "600"
+            
+            # STEP 2: Create status badge with descriptive text
+            if qty == 0:
+                badge = '<span style="background:#FEE2E2;color:#991B1B;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">❌ Out of Stock</span>'
+            elif qty == 1:
+                badge = '<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">⚠️ Critical (1)</span>'
+            elif qty == 2:
+                badge = '<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">⚠️ Low (2)</span>'
+            else:
+                badge = f'<span style="background:#ECFDF5;color:#065F46;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:600;">✅ In Stock ({qty})</span>'
+            
+            # STEP 3: Display the row with color-coded background and left border
             st.markdown(f"""
-            <div style="background:{bg};padding:12px 22px;display:flex;border-bottom:1px solid #EBF5EF;align-items:center;">
+            <div style="background:{row_bg};padding:12px 22px;display:flex;border-bottom:1px solid #EBF5EF;align-items:center;border-left:4px solid {left_border_color};transition:all 0.2s ease;">
               <span style="flex:3;font-size:13.5px;color:#1A3D2E;font-weight:500;font-family:'Inter',sans-serif;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:12px;">{b['title']}</span>
               <span style="flex:2;font-size:13px;color:#6B9080;font-family:'Inter',sans-serif;">{b['author']}</span>
               <span style="flex:2;font-size:12px;color:#8BB09C;font-family:'DM Mono',monospace;">{b['isbn']}</span>
-              <span style="flex:1;font-size:14px;font-weight:600;color:{qty_color};text-align:center;font-family:'Sora',sans-serif;">{qty}</span>
+              <span style="flex:1;font-size:{qty_font_size};font-weight:{qty_font_weight};color:{qty_color};text-align:center;font-family:'Sora',sans-serif;">{qty}</span>
               <span style="flex:1.5;font-size:13px;color:#6B9080;text-align:center;font-family:'Inter',sans-serif;">Rs. {b['late_return_fee']:.2f}</span>
               <span style="flex:1.5;text-align:right;">{badge}</span>
             </div>
