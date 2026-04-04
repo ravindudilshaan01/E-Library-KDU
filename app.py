@@ -1700,9 +1700,143 @@ def page_search(lib):
     - Show late fee information
     - Get borrower name and confirm borrow
     - Update inventory quantity automatically
+    - Recently borrowed books history
+    - Wishlist for unavailable books
     """
     page_heading("Search & Borrow",
         "Search availability by title or author · Borrowing reduces available quantity by 1")
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 📚 FEATURE 1: RECENTLY BORROWED BOOKS SECTION
+    # ─────────────────────────────────────────────────────────────────────────────
+    # Shows user's recent borrow history to encourage re-engagement
+    # Purpose: Helps users find books they've recently borrowed, improves UX
+    # Business value: Shows reading patterns and user engagement
+    
+    try:
+        # STEP 1: Get transaction history from database
+        trans = lib.get_transaction_history()
+        
+        # STEP 2: Filter for recently borrowed books (last 30 days)
+        # A recently borrowed book is one that has a borrow_date within last 30 days
+        recent_books = []
+        today = datetime.now().date()
+        thirty_days_ago = today - timedelta(days=30)
+        
+        for t in trans:
+            borrow_date = t.get("borrow_date")
+            
+            # Check if this is a valid recent borrow
+            if borrow_date and hasattr(borrow_date, "date"):
+                borrow_date_only = borrow_date.date()
+                # Include if borrowed within last 30 days
+                if thirty_days_ago <= borrow_date_only <= today:
+                    recent_books.append({
+                        "title": t.get("title", "Unknown"),
+                        "author": t.get("author", "Unknown"),
+                        "isbn": t.get("isbn", ""),
+                        "borrow_date": borrow_date_only,
+                        "borrower": t.get("borrower_name", "Unknown")
+                    })
+        
+        # STEP 3: Sort by date (most recent first) and get top 6
+        if recent_books:
+            recent_books.sort(key=lambda x: x["borrow_date"], reverse=True)
+            recent_books = recent_books[:6]  # Show only top 6 recent books
+            
+            # STEP 4: Display recently borrowed section
+            st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
+            section_title("📖 Recently Borrowed Books")
+            
+            # Display in 3-column grid
+            col1, col2, col3 = st.columns(3)
+            
+            for idx, book in enumerate(recent_books):
+                target_col = [col1, col2, col3][idx % 3]
+                
+                with target_col:
+                    # Calculate days since borrowed
+                    days_since = (today - book["borrow_date"]).days
+                    days_text = "Today" if days_since == 0 else f"{days_since}d ago"
+                    
+                    # Display book card
+                    st.markdown(f"""
+                    <div style="background:#F0FDF4;border:1px solid #D1FAE5;border-radius:12px;padding:14px;margin-bottom:10px;">
+                      <div style="font-size:12px;color:#10B981;font-weight:600;margin-bottom:6px;">📅 {days_text}</div>
+                      <div style="font-size:13px;font-weight:600;color:#1A3D2E;margin-bottom:2px;white-space:normal;line-height:1.3;">{book['title']}</div>
+                      <div style="font-size:11px;color:#6B9080;margin-bottom:8px;">{book['author']}</div>
+                      <div style="font-size:10px;color:#8BB09C;font-family:'DM Mono',monospace;word-break:break-all;">{book['isbn']}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+    
+    except Exception as e:
+        # Silently handle errors to not interrupt main page
+        pass
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 🎁 FEATURE 2: WISHLIST FEATURE
+    # ─────────────────────────────────────────────────────────────────────────────
+    # Allows users to add books to a wishlist when unavailable
+    # Purpose: Tracks user interest and provides business intelligence
+    # Value: Shows demand for books and helps with acquisition decisions
+    
+    # Initialize wishlist in session state if not exists
+    if "wishlist" not in st.session_state:
+        st.session_state.wishlist = []
+    
+    # Display wishlist side panel
+    st.markdown("<div style='margin-bottom:20px;'></div>", unsafe_allow_html=True)
+    
+    wishlist_col1, wishlist_col2 = st.columns([3, 1])
+    
+    with wishlist_col1:
+        section_title("🎁 Your Wishlist")
+    
+    with wishlist_col2:
+        # Show count of wishlisted items
+        wishlist_count = len(st.session_state.wishlist)
+        if wishlist_count > 0:
+            st.markdown(f"""
+            <div style="background:#FEF3C7;color:#92400E;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:600;text-align:center;margin-top:8px;">
+              {wishlist_count} item(s)
+            </div>
+            """, unsafe_allow_html=True)
+    
+    # Display wishlist items
+    if st.session_state.wishlist:
+        # STEP 1: Display all wishlisted books in a table format
+        card_open("12px 16px")
+        
+        for idx, wish_item in enumerate(st.session_state.wishlist):
+            col_title, col_action = st.columns([4, 1])
+            
+            with col_title:
+                # Display wishlist item details
+                st.markdown(f"""
+                <div style="padding:10px 0;border-bottom:1px solid #EBF5EF;">
+                  <div style="font-size:13px;font-weight:600;color:#1A3D2E;">{wish_item['title']}</div>
+                  <div style="font-size:11px;color:#6B9080;margin-top:2px;">{wish_item['author']}</div>
+                  <div style="font-size:10px;color:#A8C4B6;margin-top:3px;">Added: {wish_item['added_date']}</div>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col_action:
+                # Remove from wishlist button
+                if st.button("✕", key=f"remove_wish_{idx}", help="Remove from wishlist"):
+                    st.session_state.wishlist.pop(idx)
+                    st.rerun()
+        
+        card_close()
+    else:
+        # Show empty state message
+        st.markdown("""
+        <div style="background:#F9FCF9;border:1px dashed #D6EDE3;border-radius:10px;padding:16px;text-align:center;">
+          <div style="font-size:13px;color:#8BB09C;">No items in wishlist yet</div>
+          <div style="font-size:11px;color:#A8C4B6;margin-top:4px;">Add unavailable books to your wishlist</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<div style='height:20px;'></div>", unsafe_allow_html=True)
 
     if st.session_state.confirm_borrow and st.session_state.pending_borrow:
         pb  = st.session_state.pending_borrow
@@ -1808,9 +1942,44 @@ def page_search(lib):
                                 "author": book["author"], "name": name.strip()}
                             st.session_state.confirm_borrow = True; st.rerun()
                 else:
+                    # ─────────────────────────────────────────────────────────────────────────
+                    # 🎁 WISHLIST ACTION FOR UNAVAILABLE BOOKS
+                    # ─────────────────────────────────────────────────────────────────────────
+                    # When a book has no copies available, show option to add to wishlist
+                    # This tracks user interest and provides demand intelligence
+                    
+                    # Check if book is already in wishlist
+                    is_in_wishlist = any(w['isbn'] == book['isbn'] for w in st.session_state.wishlist)
+                    
                     st.markdown('<div style="padding-top:10px;font-size:13px;font-weight:500;'
                         'color:#DC2626;font-family:\'Inter\',sans-serif;">No copies available</div>',
                         unsafe_allow_html=True)
+                    
+                    # Display "Add to Wishlist" or "Already Wishlisted" button
+                    if is_in_wishlist:
+                        # Show "Already in Wishlist" - disabled state
+                        st.markdown(f"""
+                        <div style="margin-top:8px;padding:8px 12px;background:#FEF3C7;border-radius:6px;text-align:center;font-size:12px;color:#92400E;font-weight:600;">
+                          ✓ Already in Wishlist
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        # Show "Add to Wishlist" button
+                        if st.button("♡ Add to Wishlist", key=f"wish_{book['isbn']}", use_container_width=True, help="Add to wishlist for later"):
+                            # STEP 1: Create wishlist item with details
+                            wishlist_item = {
+                                "isbn": book['isbn'],
+                                "title": book['title'],
+                                "author": book['author'],
+                                "added_date": datetime.now().strftime("%d %b %Y")
+                            }
+                            
+                            # STEP 2: Add to session state wishlist
+                            st.session_state.wishlist.append(wishlist_item)
+                            
+                            # STEP 3: Show confirmation message
+                            st.success(f"📚 '{book['title']}' added to your wishlist!", icon="✓")
+                            st.rerun()
             card_close()
     except Exception:
         st.error("An error occurred during search.")
