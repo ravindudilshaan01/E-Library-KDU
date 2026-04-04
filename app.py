@@ -1521,7 +1521,89 @@ def page_add_books(lib):
                 author = st.text_input("Author *", placeholder="e.g. F. Scott Fitzgerald")
 
             st.markdown("<div style='height:2px;'></div>", unsafe_allow_html=True)
-            isbn = st.text_input("ISBN *", placeholder="e.g. 978-0-7432-7356-5")
+            
+            # ─────────────────────────────────────────────────────────────────────────────
+            # 📚 FEATURE 1: CATEGORY/GENRE FIELD
+            # ─────────────────────────────────────────────────────────────────────────────
+            # Allows users to categorize books by genre/category
+            # Purpose: Helps organize the library and enable filtering by book type
+            # Useful for readers to find books by category and for library management
+            
+            # STEP 1: Define available book categories
+            # These are standard library classification categories
+            book_categories = [
+                "📖 Select Category",  # Default/placeholder option
+                "📚 Fiction - General",
+                "📖 Fiction - Romance",
+                "🔍 Fiction - Mystery/Thriller",
+                "🚀 Fiction - Science Fiction",
+                "🎭 Fiction - Fantasy",
+                "📕 Non-Fiction - History",
+                "🧪 Non-Fiction - Science",
+                "📊 Non-Fiction - Business",
+                "🧠 Non-Fiction - Psychology",
+                "✍️ Non-Fiction - Biography",
+                "🎓 Reference",
+                "👧 Children's Books",
+                "🎯 Young Adult",
+                "📰 Journals/Periodicals",
+            ]
+            
+            # STEP 2: Display category dropdown
+            # User selects one category for the book being added
+            category = st.selectbox(
+                "Category/Genre *",
+                book_categories,
+                help="Select the book's primary category"
+            )
+            
+            st.markdown("<div style='height:2px;'></div>", unsafe_allow_html=True)
+            
+            # ─────────────────────────────────────────────────────────────────────────────
+            # 🔎 FEATURE 2: ISBN LOOKUP PREVIEW
+            # ─────────────────────────────────────────────────────────────────────────────
+            # Shows book details if the ISBN already exists in the database
+            # Purpose: Prevents duplicate entries and helps verify correct ISBN
+            # This improves data accuracy and prevents adding the same book twice
+            
+            isbn = st.text_input(
+                "ISBN *", 
+                placeholder="e.g. 978-0-7432-7356-5",
+                help="10 or 13 digit ISBN"
+            )
+            
+            # STEP 1: Check if ISBN lookup is triggered (user entered an ISBN)
+            # Only show preview if ISBN has at least the minimum length (10 digits)
+            if isbn and len(isbn.replace("-", "").replace(" ", "")) >= 10:
+                # STEP 2: Search for existing book with this ISBN
+                try:
+                    existing_books = lib.search_books_by_isbn(isbn.strip())
+                    
+                    if existing_books:
+                        # ISBN already exists - show warning
+                        st.warning("⚠️ ISBN Already Exists", icon="⚠️")
+                        
+                        for book in existing_books:
+                            # Display preview card with existing book details
+                            st.markdown(f"""
+                            <div style="background:#FEF3C7;border-left:4px solid #F59E0B;border-radius:8px;padding:12px;margin-bottom:10px;">
+                              <div style="font-size:12px;font-weight:600;color:#92400E;margin-bottom:6px;">📘 Book Already in Database</div>
+                              <div style="font-size:13px;color:#1A3D2E;font-weight:500;margin-bottom:3px;"><strong>Title:</strong> {book.get('title', 'Unknown')}</div>
+                              <div style="font-size:13px;color:#1A3D2E;margin-bottom:3px;"><strong>Author:</strong> {book.get('author', 'Unknown')}</div>
+                              <div style="font-size:13px;color:#1A3D2E;margin-bottom:3px;"><strong>Available:</strong> {book.get('available_quantity', 0)} copies</div>
+                              <div style="font-size:12px;color:#6B9080;margin-top:6px;font-style:italic;">💡 Consider increasing quantity instead of adding duplicate</div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                    else:
+                        # ISBN is unique - show success/clear indicator
+                        st.success("✅ ISBN is unique - ready to add", icon="✅")
+                        
+                except Exception as e:
+                    # If lookup fails, show info but allow to proceed
+                    st.info(f"✓ ISBN lookup ready (could not verify: {str(e)[:30]})")
+            elif isbn and len(isbn.replace("-", "").replace(" ", "")) < 10:
+                # ISBN is too short - show hint
+                st.info("📝 Enter complete ISBN (10 or 13 digits)")
 
             st.markdown("<div style='height:2px;'></div>", unsafe_allow_html=True)
             r2c1, r2c2 = st.columns(2)
@@ -1546,28 +1628,59 @@ def page_add_books(lib):
     # ── Validation & save ────────────────────────────────────────────────────
     # When user submits the form
     if submitted:
-        # Check that all required fields are filled
-        if not title.strip() or not author.strip() or not isbn.strip():
-            st.error("Please fill in all required fields: Title, Author, and ISBN.")
+        # STEP 1: Validate all required fields are filled
+        if not title.strip() or not author.strip() or not isbn.strip() or category == "📖 Select Category":
+            st.error("Please fill in all required fields: Title, Author, ISBN, and Category.")
             return
+        
+        # STEP 2: Validate ISBN format (should be 10 or 13 digits)
+        clean_isbn = isbn.strip().replace("-", "").replace(" ", "")
+        if len(clean_isbn) not in [10, 13] or not clean_isbn.isdigit():
+            st.error("ISBN must be 10 or 13 digits. Please check and try again.")
+            return
+        
         try:
-            # Attempt to add the book to database
-            ok = lib.add_book(
-                Book(
-                    title=title.strip(),
-                    author=author.strip(),
-                    isbn=isbn.strip(),
-                    late_return_fee=fee,
-                    available_quantity=int(qty),
-                )
+            # STEP 3: Check if ISBN already exists (duplicate prevention)
+            existing_books = lib.search_books_by_isbn(isbn.strip())
+            if existing_books:
+                st.error(f"❌ This ISBN already exists in the database for '{existing_books[0].get('title')}'")
+                st.info("💡 To add more copies, use the Inventory page instead.")
+                return
+            
+            # STEP 4: Create Book object with all fields including category
+            # Extract just the category name without the emoji
+            category_clean = category.split(" ", 1)[1] if " " in category else category
+            
+            new_book = Book(
+                title=title.strip(),
+                author=author.strip(),
+                isbn=clean_isbn,  # Use cleaned ISBN
+                late_return_fee=fee,
+                available_quantity=int(qty),
             )
-            # If successful, show success message
+            
+            # STEP 5: Store category information (can be extended to use custom Book class field)
+            # For now, category is validated and shown in the success message
+            st.session_state.pending_book = {
+                "title": title.strip(),
+                "author": author.strip(),
+                "isbn": clean_isbn,
+                "category": category_clean,
+                "qty": int(qty),
+                "fee": fee
+            }
+            
+            # STEP 6: Attempt to add the book to database
+            ok = lib.add_book(new_book)
+            
+            # STEP 7: Show success or error message
             if ok:
-                st.session_state.add_ok = title.strip()
+                st.session_state.add_ok = f"{title.strip()} ({category_clean})"
                 st.rerun()
-            st.error("Failed to save. Please try again.")
+            else:
+                st.error("Failed to save. Please try again.")
         except Exception as e:
-            st.error(str(e))
+            st.error(f"Error adding book: {str(e)}")
 
 
 # ═════════════════════════════════════════════════════════════════════════════════════
