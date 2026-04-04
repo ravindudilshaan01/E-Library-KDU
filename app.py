@@ -18,6 +18,27 @@ from datetime import datetime, timedelta
 import traceback
 import pandas as pd
 
+# ═════════════════════════════════════════════════════════════════════════════
+# 📍 QUICK NAVIGATION GUIDE - Find each sidebar page code below:
+# ═════════════════════════════════════════════════════════════════════════════
+# 
+# 🏠 HOME PAGE / DASHBOARD           Line ~890   (page_dashboard function)
+#     └─ Library stats, alerts, activity summary
+#
+# 📦 INVENTORY PAGE                  Line ~1120  (page_inventory function)
+#     └─ Complete catalog, search, filter, CSV export
+#
+# ➕ ADD BOOKS PAGE                  Line ~1208  (page_add_books function)
+#     └─ Form to add new books with validation
+#
+# 🔍 SEARCH & BORROW PAGE            Line ~1328  (page_search function)
+#     └─ Search books, view availability, process borrowing
+#
+# ↩️ RETURNS & FEES PAGE             Line ~1459  (page_returns function)
+#     └─ Process returns, calculate late fees
+#
+# ═════════════════════════════════════════════════════════════════════════════
+
 # ─────────────────────────────────────────────────────────────────────────────
 # PAGE CONFIG
 # ─────────────────────────────────────────────────────────────────────────────
@@ -100,7 +121,7 @@ section[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
 }
 
 [data-testid="collapsedControl"] {
-    background-color: #406093 !important;
+    background-color: #1A3D2E !important;
     display: block !important;
     visibility: visible !important;
 }
@@ -179,10 +200,8 @@ section[data-testid="stSidebar"] button[data-baseweb="button"][kind="secondary"]
 section[data-testid="stSidebar"] button[kind="primary"],
 section[data-testid="stSidebar"] .stButton button[kind="primary"],
 section[data-testid="stSidebar"] button[data-baseweb="button"][kind="primary"] {
-    background: #406093
-  !important;
-    background-color: #406093
-  !important;
+    background: #2D6A4F !important;
+    background-color: #2D6A4F !important;
     background-image: none !important;
     color: #D8F3DC !important;
     font-weight: 600 !important;
@@ -233,8 +252,7 @@ section[data-testid="stSidebar"] button:hover::before {
     transition: all 0.16s ease !important;
 }
 .stButton > button[kind="primary"] {
-    background: #406093
-  !important;
+    background: #2D6A4F !important;
     color: #F0FDF4 !important;
     border: none !important;
 }
@@ -342,8 +360,7 @@ hr { border-color: #DAF0E5 !important; margin: 18px 0 !important; }
     width: 16px;
     border-radius: 50%;
     left: 0;
-    background: #406093
- ;
+    background: #2D6A4F;
 }
 .elib-title::before {
     width: 18px;
@@ -374,8 +391,7 @@ hr { border-color: #DAF0E5 !important; margin: 18px 0 !important; }
   padding: 16px 36px;
   border: 4px solid transparent;
   font-size: 16px;
-  background-color: #406093
- ;
+  background-color: #2D6A4F;
   border-radius: 100px;
   font-weight: 600;
   color: #F0FDF4;
@@ -878,17 +894,20 @@ def main():
     page = st.session_state.page   # Get the current page user is on
 
     # Display the appropriate page based on selection
-    if   page == "Dashboard":       page_dashboard(lib)      # Show home/dashboard
-    elif page == "Inventory":       page_inventory(lib)      # Show all books
-    elif page == "Add Books":       page_add_books(lib)      # Show add book form
-    elif page == "Search & Borrow": page_search(lib)        # Show search and borrow
-    elif page == "Returns & Fees":  page_returns(lib)       # Show return and fee calculator
+    # Each page is defined below with clear section headers showing which sidebar page it is
+    if   page == "Dashboard":       page_dashboard(lib)      # 🏠 HOME PAGE (see line ~890)
+    elif page == "Inventory":       page_inventory(lib)      # 📦 INVENTORY PAGE (see line ~1120)
+    elif page == "Add Books":       page_add_books(lib)      # ➕ ADD BOOKS PAGE (see line ~1208)
+    elif page == "Search & Borrow": page_search(lib)        # 🔍 SEARCH & BORROW PAGE (see line ~1328)
+    elif page == "Returns & Fees":  page_returns(lib)       # ↩️ RETURNS & FEES PAGE (see line ~1459)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# DASHBOARD / HOME PAGE (Requirement 5)
-# ─────────────────────────────────────────────────────────────────────────────
-# This is the first page users see - shows library statistics and recent activity
+# ═════════════════════════════════════════════════════════════════════════════════════
+# 🏠 HOME PAGE / DASHBOARD
+# ═════════════════════════════════════════════════════════════════════════════════════════
+# SIDEBAR: Home (🏠) — This is the first page users see
+# Shows library statistics, alerts, and recent activity
+# Location: Sidebar → "Home" (🏠)
 
 def page_dashboard(lib):
     """
@@ -999,6 +1018,156 @@ def page_dashboard(lib):
         """, unsafe_allow_html=True)
 
     st.markdown("<div style='height:24px;'></div>", unsafe_allow_html=True)
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 📊 FEATURE 1: MOST BORROWED BOOKS WIDGET
+    # ─────────────────────────────────────────────────────────────────────────────
+    # Shows the top 3 most borrowed books in the library
+    # Purpose: Provides analytics about popular books and reading patterns
+    # This helps librarians understand user preferences and manage stock accordingly
+    
+    try:
+        # STEP 1: Count how many times each book was borrowed
+        borrow_count = {}  # Dictionary: ISBN -> number of times borrowed
+        
+        for transaction in trans:
+            isbn = transaction.get("isbn", "")
+            # Count only completed borrowing transactions
+            if isbn and transaction.get("borrow_date"):
+                borrow_count[isbn] = borrow_count.get(isbn, 0) + 1
+        
+        # STEP 2: Get the top 3 most borrowed books
+        if borrow_count:
+            # Sort by count (highest first) and take the top 3
+            top_borrowed_isbns = sorted(borrow_count.items(), key=lambda x: x[1], reverse=True)[:3]
+            
+            # STEP 3: Build the book details for display
+            top_borrowed_books = []
+            for isbn, count in top_borrowed_isbns:
+                # Find the book details from inventory
+                for book in inv:
+                    if book.get("isbn") == isbn:
+                        top_borrowed_books.append({
+                            "title": book.get("title", "Unknown"),
+                            "author": book.get("author", "Unknown Author"),
+                            "count": count
+                        })
+                        break
+            
+            # STEP 4: Display the "Most Borrowed Books" widget
+            if top_borrowed_books:
+                st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
+                section_title("📈 Most Borrowed Books")
+                
+                # Create 3 columns for the top 3 books
+                col1, col2, col3 = st.columns(3)
+                
+                for idx, (col, book) in enumerate(zip([col1, col2, col3], top_borrowed_books)):
+                    with col:
+                        # Display each book in a styled card
+                        st.markdown(f"""
+                        <div style="background:#F0FDF4;border:2px solid #22C55E;border-radius:12px;padding:18px;text-align:center;height:160px;display:flex;flex-direction:column;justify-content:center;">
+                          <div style="font-size:32px;color:#16A34A;margin-bottom:8px;">{'🏆' if idx == 0 else '🥈' if idx == 1 else '🥉'}</div>
+                          <div style="font-size:13px;font-weight:600;color:#1A3D2E;margin-bottom:4px;white-space:normal;line-height:1.3;">{book['title']}</div>
+                          <div style="font-size:11px;color:#6B9080;margin-bottom:10px;">{book['author']}</div>
+                          <div style="font-size:14px;font-weight:700;color:#22C55E;">{book['count']} borrowed</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+    
+    except Exception as e:
+        # Handle any errors gracefully
+        st.warning(f"Could not load most borrowed books: {str(e)}")
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # 🚨 FEATURE 2: BOOKS DUE SOON ALERT
+    # ─────────────────────────────────────────────────────────────────────────────
+    # Shows books that are approaching their 14-day borrowing limit
+    # Purpose: Proactive notification to help borrowers remember to return books on time
+    # This reduces overdue books and improves library operations
+    
+    try:
+        # STEP 1: Find all books that are due within the next 5 days
+        books_due_soon = []  # List to store books nearing their due date
+        today = datetime.now().date()
+        
+        for transaction in trans:
+            # Check only active loans (not yet returned)
+            if not transaction.get("return_date"):
+                due_date = transaction.get("due_date")
+                
+                if due_date and hasattr(due_date, "date"):
+                    due_date_only = due_date.date()
+                    days_until_due = (due_date_only - today).days
+                    
+                    # Add to alert list if due within 5 days (but not overdue)
+                    if 0 <= days_until_due <= 5:
+                        books_due_soon.append({
+                            "title": transaction.get("title", "Unknown"),
+                            "borrower": transaction.get("borrower_name", "Unknown"),
+                            "due_date": due_date_only,
+                            "days_left": days_until_due
+                        })
+        
+        # STEP 2: Display alert if there are books due soon
+        if books_due_soon:
+            st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
+            
+            # Sort by days left (soonest first)
+            books_due_soon.sort(key=lambda x: x["days_left"])
+            
+            # Display alert header
+            st.markdown(f"""
+            <div style="background:#FEF3C7;border-left:5px solid #F59E0B;padding:14px;border-radius:8px;margin-bottom:12px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <span style="font-size:20px;">⏰</span>
+                <div>
+                  <div style="font-size:14px;font-weight:600;color:#92400E;">Books Due Soon</div>
+                  <div style="font-size:12px;color:#B45309;">{len(books_due_soon)} book(s) approaching their due date</div>
+                </div>
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # STEP 3: Display each book due soon in a table format
+            card_open("0")
+            st.markdown("""
+            <div style="background:#1A3D2E;padding:12px 18px;border-radius:8px 8px 0 0;display:flex;">
+              <span style="flex:2;font-size:11px;font-weight:600;color:#74C69D;letter-spacing:0.8px;text-transform:uppercase;">Book Title</span>
+              <span style="flex:1.5;font-size:11px;font-weight:600;color:#74C69D;letter-spacing:0.8px;text-transform:uppercase;">Borrower</span>
+              <span style="flex:1;font-size:11px;font-weight:600;color:#74C69D;letter-spacing:0.8px;text-transform:uppercase;">Due Date</span>
+              <span style="flex:0.8;text-align:center;font-size:11px;font-weight:600;color:#74C69D;letter-spacing:0.8px;text-transform:uppercase;">Days Left</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Display each book in the table
+            for i, book in enumerate(books_due_soon):
+                bg_color = "#FFFFFF" if i % 2 == 0 else "#F9FCF9"
+                
+                # Color code the days left: red if 0-1 days, orange if 2-3 days, yellow if 4-5 days
+                if book["days_left"] <= 1:
+                    days_color = "#DC2626"
+                    days_bg = "#FEE2E2"
+                elif book["days_left"] <= 3:
+                    days_color = "#D97706"
+                    days_bg = "#FEF3C7"
+                else:
+                    days_color = "#F59E0B"
+                    days_bg = "#FFFBEB"
+                
+                st.markdown(f"""
+                <div style="background:{bg_color};padding:12px 18px;display:flex;align-items:center;border-bottom:1px solid #EBF5EF;">
+                  <span style="flex:2;font-size:13px;color:#1A3D2E;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{book['title']}</span>
+                  <span style="flex:1.5;font-size:12.5px;color:#6B9080;">{book['borrower']}</span>
+                  <span style="flex:1;font-size:12px;color:#8BB09C;">{book['due_date'].strftime('%d %b %Y')}</span>
+                  <span style="flex:0.8;text-align:center;font-size:12px;font-weight:600;color:{days_color};background:{days_bg};padding:4px 8px;border-radius:5px;">{book['days_left']} day{'s' if book['days_left'] != 1 else ''}</span>
+                </div>
+                """, unsafe_allow_html=True)
+            
+            card_close()
+    
+    except Exception as e:
+        # Handle any errors gracefully
+        st.warning(f"Could not load books due soon: {str(e)}")
 
     left, right = st.columns([1.45, 1])
 
@@ -1115,10 +1284,12 @@ def page_dashboard(lib):
     </div>
     """, unsafe_allow_html=True)
 
-# ─────────────────────────────────────────────────────────────────────────────
-# INVENTORY PAGE (Requirement 5 - Inventory Dashboard)
-# ─────────────────────────────────────────────────────────────────────────────
-# Shows all books in the library with search/filter and CSV export
+# ═════════════════════════════════════════════════════════════════════════════════════
+# 📦 INVENTORY PAGE
+# ═════════════════════════════════════════════════════════════════════════════════════════
+# SIDEBAR: Inventory (📦) — View all books with search, filter, and CSV export
+# Shows complete catalog with statistics and download capability
+# Location: Sidebar → "Inventory" (📦)
 
 def page_inventory(lib):
     """
@@ -1203,10 +1374,12 @@ def page_inventory(lib):
         st.error("Error loading inventory.")
         with st.expander("Details"): st.code(traceback.format_exc())
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ADD BOOKS PAGE (Requirement 1 - Add Books)
-# ─────────────────────────────────────────────────────────────────────────────
-# Form for librarians to add new books to the catalog
+# ═════════════════════════════════════════════════════════════════════════════════════
+# ➕ ADD BOOKS PAGE
+# ═════════════════════════════════════════════════════════════════════════════════════════
+# SIDEBAR: Add Books (➕) — Add new books to the library catalog
+# Form to input title, author, ISBN, late fee, and quantity
+# Location: Sidebar → "Add Books" (➕)
 
 def page_add_books(lib):
     """
@@ -1323,10 +1496,12 @@ def page_add_books(lib):
             st.error(str(e))
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# SEARCH & BORROW PAGE (Requirements 2 & 3)
-# ─────────────────────────────────────────────────────────────────────────────
-# Search for books and process borrowing
+# ═════════════════════════════════════════════════════════════════════════════════════
+# 🔍 SEARCH & BORROW PAGE
+# ═════════════════════════════════════════════════════════════════════════════════════════
+# SIDEBAR: Search & Borrow (🔍) — Find books and process borrowing
+# Search by title/author, view availability, and record borrower name
+# Location: Sidebar → "Search & Borrow" (🔍)
 
 def page_search(lib):
     """
@@ -1454,10 +1629,12 @@ def page_search(lib):
         st.error("An error occurred during search.")
         with st.expander("Details"): st.code(traceback.format_exc())
 
-# ─────────────────────────────────────────────────────────────────────────────
-# RETURNS & FEES PAGE (Requirement 4 - Late Fee Calculator)
-# ─────────────────────────────────────────────────────────────────────────────
-# Process book returns and calculate late fees
+# ═════════════════════════════════════════════════════════════════════════════════════
+# ↩️ RETURNS & FEES PAGE
+# ═════════════════════════════════════════════════════════════════════════════════════════
+# SIDEBAR: Returns & Fees (↩️) — Process returns and calculate late fees
+# Calculate days borrowed, determine if overdue, and apply late fees
+# Location: Sidebar → "Returns & Fees" (↩️)
 
 def page_returns(lib):
     """
