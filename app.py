@@ -78,6 +78,8 @@ for k, v in {
     "return_ok":      None,         # Was return successful?
     "ret_isbn":       "",           # ISBN being returned
     "ret_name":       "",           # Name of person returning
+    "fee_details":    {},           # Fee calculation details for transparency
+    "wishlist":       [],           # User's wishlist of books
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -2026,18 +2028,140 @@ def page_returns(lib):
                     Book Returned — Late Fee Due</div>
                   <div style="font-size:13px;color:#78350F;margin-bottom:18px;font-family:'Inter',sans-serif;">
                     Returned by <strong>{rr['name']}</strong></div>
-                  <div style="background:#FFFBEB;border-left:3px solid #D97706;border-radius:0 8px 8px 0;padding:18px 20px;text-align:left;">
-                    <div style="font-size:10.5px;font-weight:600;color:#92400E;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">Late Return Fee</div>
-                    <div style="font-family:'Sora',sans-serif;font-size:32px;color:#92400E;">Rs. {rr['fee']:.2f}</div>
-                    <div style="font-size:12px;color:#92400E;margin-top:6px;font-family:'Inter',sans-serif;">Please collect this amount at the counter.</div>
+                  
+                  <!-- FEE BREAKDOWN SECTION -->
+                  <div style="background:#FFFBEB;border-radius:10px;padding:18px 20px;text-align:left;margin-bottom:16px;">
+                    <div style="font-size:10.5px;font-weight:600;color:#92400E;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">Late Return Fee Breakdown</div>
+                    
+                    <!-- Days Borrowed -->
+                    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #FED7AA;">
+                      <span style="font-size:12px;color:#92400E;font-family:'Inter',sans-serif;">Days Borrowed</span>
+                      <span style="font-size:12px;color:#92400E;font-weight:600;" id="days_borrowed">{rr.get('days_borrowed', 'N/A')} days</span>
+                    </div>
+                    
+                    <!-- Days Allowed -->
+                    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #FED7AA;">
+                      <span style="font-size:12px;color:#92400E;font-family:'Inter',sans-serif;">Days Allowed</span>
+                      <span style="font-size:12px;color:#92400E;font-weight:600;">14 days</span>
+                    </div>
+                    
+                    <!-- Days Late -->
+                    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #FED7AA;">
+                      <span style="font-size:12px;color:#92400E;font-family:'Inter',sans-serif;">Days Late</span>
+                      <span style="font-size:12px;color:#DC2626;font-weight:600;">{rr.get('days_late', '0')} days</span>
+                    </div>
+                    
+                    <!-- Daily Rate -->
+                    <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #FED7AA;">
+                      <span style="font-size:12px;color:#92400E;font-family:'Inter',sans-serif;">Daily Rate</span>
+                      <span style="font-size:12px;color:#92400E;font-weight:600;">Rs. {rr.get('daily_rate', '0'):.2f}</span>
+                    </div>
+                    
+                    <!-- Total Calculation -->
+                    <div style="display:flex;justify-content:space-between;padding:12px 0;margin-top:6px;">
+                      <span style="font-size:12px;color:#92400E;font-weight:700;font-family:'Inter',sans-serif;">Total Late Fee</span>
+                      <span style="font-size:16px;color:#DC2626;font-weight:700;font-family:'Sora',sans-serif;">Rs. {rr['fee']:.2f}</span>
+                    </div>
+                  </div>
+                  
+                  <div style="font-size:12px;color:#92400E;margin-bottom:16px;font-family:'Inter',sans-serif;">Please collect this amount at the counter.</div>
+                  
+                  <!-- RECEIPT DOWNLOAD BUTTON -->
+                  <div style="background:#F0FDF4;border:1px solid #D1FAE5;border-radius:8px;padding:12px;margin-bottom:12px;">
+                    <div style="font-size:11px;color:#10B981;font-weight:600;margin-bottom:8px;">📄 Transaction Receipt</div>
                   </div>
                 </div>
                 """, unsafe_allow_html=True)
+                
+                # STEP 1: Generate receipt content for download
+                receipt_content = f"""KOTHALAWALA E-LIBRARY - RETURN RECEIPT
+═══════════════════════════════════════
+Generated: {datetime.now().strftime('%d %B %Y at %H:%M:%S')}
+
+RETURN DETAILS
+──────────────────────────────────────
+Borrower Name: {rr['name']}
+Book ISBN: {rr.get('isbn', 'N/A')}
+Book Title: {rr.get('title', 'N/A')}
+
+BORROWING PERIOD
+──────────────────────────────────────
+Date Borrowed: {rr.get('borrow_date', 'N/A')}
+Date Returned: {datetime.now().strftime('%d %B %Y')}
+Days Borrowed: {rr.get('days_borrowed', 'N/A')} days
+
+FEE CALCULATION
+──────────────────────────────────────
+Allowed Period: 14 days
+Days Late: {rr.get('days_late', '0')} days
+Daily Late Fee Rate: Rs. {rr.get('daily_rate', '0'):.2f}
+─────────────────────────────────────
+Calculation: {rr.get('days_late', '0')} days × Rs. {rr.get('daily_rate', '0'):.2f} = Rs. {rr['fee']:.2f}
+
+TOTAL LATE FEE DUE: Rs. {rr['fee']:.2f}
+
+STATUS: PAYMENT PENDING
+─────────────────────────────────────
+Please present this receipt at the counter
+to complete the payment.
+
+Thank you for using Kothalawala E-Library!
+═══════════════════════════════════════
+"""
+                
+                # STEP 2: Create download button for receipt
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.download_button(
+                        label="📥 Download Receipt",
+                        data=receipt_content,
+                        file_name=f"receipt_{rr['name'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                        mime="text/plain",
+                        use_container_width=True
+                    )
+                with col2:
+                    st.markdown('<button style="width:100%;padding:12px;background:#E0E7FF;border:1px solid #C7D2FE;color:#312E81;border-radius:8px;font-weight:600;cursor:pointer;font-size:13px;">📋 Print Receipt</button>', unsafe_allow_html=True)
             else:
                 # Show if returned on time
                 success_box("Book Returned On Time",
                     f'Returned by <strong>{rr["name"]}</strong>.<br>Within the 14-day loan period — no late fees.')
                 st.balloons()
+                
+                # STEP 1: Generate receipt for on-time return
+                receipt_content = f"""KOTHALAWALA E-LIBRARY - RETURN RECEIPT
+═══════════════════════════════════════
+Generated: {datetime.now().strftime('%d %B %Y at %H:%M:%S')}
+
+RETURN DETAILS
+──────────────────────────────────────
+Borrower Name: {rr['name']}
+Book ISBN: {rr.get('isbn', 'N/A')}
+Book Title: {rr.get('title', 'N/A')}
+
+BORROWING PERIOD
+──────────────────────────────────────
+Date Borrowed: {rr.get('borrow_date', 'N/A')}
+Date Returned: {datetime.now().strftime('%d %B %Y')}
+Days Borrowed: {rr.get('days_borrowed', 'N/A')} days
+
+STATUS: ✓ RETURNED ON TIME
+──────────────────────────────────────
+Within the 14-day loan period
+Late Fee: None
+
+Thank you for returning on time!
+═══════════════════════════════════════
+"""
+                
+                # STEP 2: Create download button for receipt
+                st.download_button(
+                    label="📥 Download Receipt",
+                    data=receipt_content,
+                    file_name=f"receipt_{rr['name'].replace(' ', '_')}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                    mime="text/plain",
+                    use_container_width=True
+                )
+            
             st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
             if st.button("Process Another Return", type="primary", use_container_width=True):
                 st.session_state.return_ok = None; st.rerun()
@@ -2047,27 +2171,154 @@ def page_returns(lib):
     if st.session_state.confirm_return:
         _, cc, _ = st.columns([1, 2, 1])
         with cc:
-            confirm_box("Confirm Return",
-                f'Processing return for <strong>{st.session_state.ret_name}</strong><br>'
-                f'ISBN: <code>{st.session_state.ret_isbn}</code>')
-            b1, b2 = st.columns(2)
-            with b1:
-                if st.button("Confirm Return", type="primary", use_container_width=True):
-                    try:
-                        # Process the return in database
-                        fee = lib.return_book(st.session_state.ret_isbn, st.session_state.ret_name)
-                        st.session_state.confirm_return = False
-                        if fee is not None:
-                            # Store result to show on success screen
-                            st.session_state.return_ok = {"name": st.session_state.ret_name, "fee": fee}
-                        else:
-                            st.error("No active borrow record found for this ISBN and name.")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(str(e))
-            with b2:
-                if st.button("Cancel", use_container_width=True):
+            # ─────────────────────────────────────────────────────────────────────────
+            # 💳 FEATURE 1: FINE PAYMENT CONFIRMATION WITH DETAILED BREAKDOWN
+            # ─────────────────────────────────────────────────────────────────────────
+            # Shows detailed fee breakdown before final confirmation
+            # Purpose: Transparency and prevents disputes about fee calculation
+            # Users can see exactly how the fee is calculated
+            
+            isbn = st.session_state.ret_isbn
+            bname = st.session_state.ret_name
+            
+            # STEP 1: Retrieve book details and transaction history to calculate fee
+            try:
+                bk = lib.get_book_by_isbn(isbn)
+                trans = lib.get_transaction_history()
+                
+                # Find the relevant transaction
+                target_trans = None
+                for t in trans:
+                    if t.get("isbn") == isbn and t.get("borrower_name") == bname and not t.get("return_date"):
+                        target_trans = t
+                        break
+                
+                if target_trans and bk:
+                    # STEP 2: Calculate fee details
+                    borrow_date = target_trans.get("borrow_date")
+                    return_date = datetime.now()
+                    
+                    if hasattr(borrow_date, "date"):
+                        borrow_date_only = borrow_date.date()
+                    else:
+                        borrow_date_only = borrow_date
+                    
+                    days_borrowed = (return_date.date() - borrow_date_only).days
+                    days_late = max(0, days_borrowed - 14)
+                    daily_fee = bk.get("late_return_fee", 0)
+                    total_fee = days_late * daily_fee
+                    
+                    # Store fee details for later use
+                    st.session_state.fee_details = {
+                        "days_borrowed": days_borrowed,
+                        "days_late": days_late,
+                        "daily_rate": daily_fee,
+                        "total_fee": total_fee,
+                        "isbn": isbn,
+                        "title": bk.get("title", "Unknown"),
+                        "borrow_date": borrow_date_only.strftime("%d %B %Y") if hasattr(borrow_date_only, "strftime") else str(borrow_date_only)
+                    }
+                    
+                    # STEP 3: Display confirmation with fee breakdown
+                    confirm_box("Confirm Return",
+                        f'Processing return for <strong>{bname}</strong><br>'
+                        f'ISBN: <code>{isbn}</code>')
+                    
+                    st.markdown("<div style='height:12px;'></div>", unsafe_allow_html=True)
+                    
+                    # Display fee breakdown in a detailed card
+                    st.markdown(f"""
+                    <div style="background:#FEF3C7;border-radius:10px;padding:16px;margin-bottom:16px;">
+                      <div style="font-size:11px;font-weight:600;color:#92400E;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">📊 Fee Calculation Breakdown</div>
+                      
+                      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #FED7AA;">
+                        <span style="font-size:12px;color:#92400E;">Book Title</span>
+                        <span style="font-size:12px;color:#92400E;font-weight:600;text-align:right;">{bk.get('title', 'N/A')}</span>
+                      </div>
+                      
+                      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #FED7AA;">
+                        <span style="font-size:12px;color:#92400E;">Date Borrowed</span>
+                        <span style="font-size:12px;color:#92400E;font-weight:600;">{st.session_state.fee_details['borrow_date']}</span>
+                      </div>
+                      
+                      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #FED7AA;">
+                        <span style="font-size:12px;color:#92400E;">Days Borrowed</span>
+                        <span style="font-size:12px;color:#92400E;font-weight:600;">{days_borrowed} days</span>
+                      </div>
+                      
+                      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #FED7AA;">
+                        <span style="font-size:12px;color:#92400E;">Allowed Period</span>
+                        <span style="font-size:12px;color:#10B981;font-weight:600;">14 days</span>
+                      </div>
+                      
+                      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #FED7AA;">
+                        <span style="font-size:12px;color:#92400E;">Days Late</span>
+                        <span style="font-size:12px;color:#DC2626;font-weight:700;">{days_late} days</span>
+                      </div>
+                      
+                      <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #FED7AA;">
+                        <span style="font-size:12px;color:#92400E;">Daily Late Fee Rate</span>
+                        <span style="font-size:12px;color:#92400E;font-weight:600;">Rs. {daily_fee:.2f}</span>
+                      </div>
+                      
+                      <div style="display:flex;justify-content:space-between;padding:12px 0;margin-top:6px;border-top:2px solid #D97706;">
+                        <span style="font-size:13px;color:#92400E;font-weight:700;">Total Calculation</span>
+                        <span style="font-size:13px;color:#92400E;font-weight:700;">{days_late} × Rs. {daily_fee:.2f}</span>
+                      </div>
+                      
+                      <div style="display:flex;justify-content:space-between;padding:10px 0;margin-top:4px;">
+                        <span style="font-size:13px;color:#DC2626;font-weight:700;">TOTAL DUE</span>
+                        <span style="font-size:18px;color:#DC2626;font-weight:900;font-family:'Sora',sans-serif;">Rs. {total_fee:.2f}</span>
+                      </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                    # Display information about the fee
+                    if days_late > 0:
+                        st.info(f"⚠️ **Late Fee Due**: This book was returned {days_late} days late. A fee of Rs. {total_fee:.2f} must be collected.")
+                    else:
+                        st.success(f"✅ **On Time**: This book was returned within the 14-day loan period. No late fees.")
+                    
+                    st.markdown("<div style='height:8px;'></div>", unsafe_allow_html=True)
+                    
+                    # Buttons for confirmation
+                    b1, b2 = st.columns(2)
+                    with b1:
+                        if st.button("✓ Confirm & Process Return", type="primary", use_container_width=True):
+                            try:
+                                # Process the return in database
+                                fee = lib.return_book(isbn, bname)
+                                st.session_state.confirm_return = False
+                                if fee is not None:
+                                    # Store result with all additional details for receipt
+                                    st.session_state.return_ok = {
+                                        "name": bname,
+                                        "fee": fee,
+                                        "isbn": isbn,
+                                        "title": bk.get("title", "Unknown"),
+                                        "days_borrowed": days_borrowed,
+                                        "days_late": days_late,
+                                        "daily_rate": daily_fee,
+                                        "borrow_date": st.session_state.fee_details['borrow_date']
+                                    }
+                                else:
+                                    st.error("No active borrow record found for this ISBN and name.")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"Error processing return: {str(e)}")
+                    with b2:
+                        if st.button("Cancel", use_container_width=True):
+                            st.session_state.confirm_return = False; st.rerun()
+                else:
+                    st.error("Could not find transaction or book details. Please check the ISBN and borrower name.")
+                    if st.button("Back", use_container_width=True):
+                        st.session_state.confirm_return = False; st.rerun()
+            
+            except Exception as e:
+                st.error(f"Error retrieving book details: {str(e)}")
+                if st.button("Back", use_container_width=True):
                     st.session_state.confirm_return = False; st.rerun()
+        
         return
 
     # Screen 3: Input form
