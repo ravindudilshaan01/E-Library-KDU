@@ -122,7 +122,7 @@ E-Library-KDU/
 - Run `streamlit run app.py`
 - Access via `http://localhost:8501`
 
-## 🤝 Contributing
+##  🧠 Contributing
 
 1. Fork the repository
 2. Create feature branch (`git checkout -b feature/AmazingFeature`)
@@ -138,7 +138,7 @@ This project is developed for educational purposes at Kothalawala Defence Univer
 
 - **Ravindudilshaan** - *Initial work* - [ravindudilshaan01](https://github.com/ravindudilshaan01)
 
-## 🙏 Acknowledgments
+## ✍️ Acknowledgments
 
 - Kothalawala Defence University
 - Firebase team for excellent documentation
