@@ -1,4 +1,4 @@
-# 📚 Kothalawala E-Library Management System
+# 📚 Kotelawala E-Library Management System
 
 A comprehensive library management system built with Python, Streamlit, and Firebase Firestore for Kothalawala Defence University.
 
@@ -140,7 +140,7 @@ This project is developed for educational purposes at Kothalawala Defence Univer
 
 ## ✍️ Acknowledgments
 
-- Kothalawala Defence University
+- Kotelawala Defence University
 - Firebase team for excellent documentation
 - Streamlit community for UI components
 - Open source libraries used in this project
