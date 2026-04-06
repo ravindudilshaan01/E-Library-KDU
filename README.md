@@ -2,7 +2,7 @@
 
 A comprehensive library management system built with Python, Streamlit, and Firebase Firestore for Kothalawala Defence University.
 
-## 🚀 Features
+## 🎗️ Features
 
 ### Core Requirements Implemented
 - **REQ 1**: Add Books - Complete book entry system with title, author, ISBN, late fees, and quantity
