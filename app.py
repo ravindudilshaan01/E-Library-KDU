@@ -1591,7 +1591,9 @@ def page_add_books(lib):
             if isbn and len(isbn.replace("-", "").replace(" ", "")) >= 10:
                 # STEP 2: Search for existing book with this ISBN
                 try:
-                    existing_books = lib.search_books_by_isbn(isbn.strip())
+                    # Check if book with this ISBN already exists
+                    existing_book = lib.get_book_by_isbn(isbn.strip())
+                    existing_books = [existing_book] if existing_book else []
                     
                     if existing_books:
                         # ISBN already exists - show warning
@@ -1655,9 +1657,10 @@ def page_add_books(lib):
         
         try:
             # STEP 3: Check if ISBN already exists (duplicate prevention)
-            existing_books = lib.search_books_by_isbn(isbn.strip())
-            if existing_books:
-                st.error(f"❌ This ISBN already exists in the database for '{existing_books[0].get('title')}'")
+            # Try to get the book - if it exists, it will not be None
+            existing_book = lib.get_book_by_isbn(isbn.strip())
+            if existing_book:
+                st.error(f"❌ This ISBN already exists in the database for '{existing_book.get('title')}'")
                 st.info("💡 To add more copies, use the Inventory page instead.")
                 return
             
@@ -1685,16 +1688,25 @@ def page_add_books(lib):
             }
             
             # STEP 6: Attempt to add the book to database
+            print(f"[DEBUG] Adding book: {new_book.title} with ISBN {clean_isbn}")
             ok = lib.add_book(new_book)
+            print(f"[DEBUG] Add result: {ok}")
             
             # STEP 7: Show success or error message
             if ok:
+                print(f"[DEBUG] Book added successfully, setting add_ok and rerunning")
                 st.session_state.add_ok = f"{title.strip()} ({category_clean})"
+                st.success(f"✅ Book '{title.strip()}' has been added to the system!")
+                st.balloons()
                 st.rerun()
             else:
-                st.error("Failed to save. Please try again.")
+                st.error("❌ Failed to save book. Please check that all details are correct and try again.")
         except Exception as e:
-            st.error(f"Error adding book: {str(e)}")
+            print(f"[ERROR] Exception during add_book: {str(e)}")
+            import traceback
+            st.error(f"❌ Error adding book: {str(e)}")
+            with st.expander("Technical Details"):
+                st.code(traceback.format_exc())
 
 
 # ═════════════════════════════════════════════════════════════════════════════════════
@@ -1918,7 +1930,9 @@ def page_search(lib):
     try:
         # MANDATORY: Handle ISBN searches with or without dashes/spaces
         if search_by == "isbn":
-            results = lib.search_books_by_isbn(query.strip())
+            # Search by ISBN and convert to list format
+            book = lib.get_book_by_isbn(query.strip())
+            results = [book] if book else []
         else:
             results = lib.search_book(query.strip(), search_by=search_by)
         
