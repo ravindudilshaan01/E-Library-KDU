@@ -54,32 +54,36 @@ st.set_page_config(
 # ─────────────────────────────────────────────────────────────────────────────
 # SESSION STATE
 # ─────────────────────────────────────────────────────────────────────────────
-# Streamlit "forgets" everything when page refreshes, so we use session_state
+# MANDATORY: Streamlit "forgets" everything when page refreshes, so we use session_state
 # to remember things between user interactions (like sidebar selections, form data)
+# This is critical for maintaining state across page reloads
 if "lib" not in st.session_state:
     try:
-        # Initialize the database connection (connects to Firebase)
+        # MANDATORY: Initialize the database connection (connects to Firebase Firestore)
+        # This creates a LibraryManager instance that will be reused across all pages
         st.session_state.lib   = LibraryManager()
-        st.session_state.db_ok = True
+        st.session_state.db_ok = True  # Flag to indicate successful database connection
     except Exception as e:
+        # Database connection failed - inform user
         st.session_state.db_ok    = False
         st.session_state.db_error = str(e)
 
-# Initialize page state variables (remember the current page, confirmations, etc.)
+# MANDATORY: Initialize page state variables (remember the current page, confirmations, etc.)
+# These variables persist across reruns and maintain the application state
 for k, v in {
-    "page":           "Dashboard",  # Which page is user viewing
-    "confirm_add":    False,        # Waiting for add book confirmation?
-    "confirm_borrow": False,        # Waiting for borrow confirmation?
-    "confirm_return": False,        # Waiting for return confirmation?
-    "pending_book":   None,         # Book data waiting to be confirmed
-    "pending_borrow": None,         # Borrow data waiting to be confirmed
-    "add_ok":         None,         # Was book successfully added?
-    "borrow_ok":      None,         # Was borrow successful?
-    "return_ok":      None,         # Was return successful?
-    "ret_isbn":       "",           # ISBN being returned
-    "ret_name":       "",           # Name of person returning
-    "fee_details":    {},           # Fee calculation details for transparency
-    "wishlist":       [],           # User's wishlist of books
+    "page":           "Dashboard",  # MANDATORY: Which page is user currently viewing
+    "confirm_add":    False,        # MANDATORY: Waiting for add book confirmation?
+    "confirm_borrow": False,        # MANDATORY: Waiting for borrow confirmation?
+    "confirm_return": False,        # MANDATORY: Waiting for return confirmation?
+    "pending_book":   None,         # MANDATORY: Book data waiting to be confirmed
+    "pending_borrow": None,         # MANDATORY: Borrow data waiting to be confirmed
+    "add_ok":         None,         # MANDATORY: Was book successfully added?
+    "borrow_ok":      None,         # MANDATORY: Was borrow successful?
+    "return_ok":      None,         # MANDATORY: Was return successful?
+    "ret_isbn":       "",           # MANDATORY: ISBN being returned
+    "ret_name":       "",           # MANDATORY: Name of person returning
+    "fee_details":    {},           # MANDATORY: Fee calculation details for transparency
+    "wishlist":       [],           # MANDATORY: User's wishlist of books
 }.items():
     if k not in st.session_state:
         st.session_state[k] = v
@@ -809,18 +813,10 @@ def step_bar(active):
 # This is the left sidebar with the menu buttons to navigate between pages
 
 def sidebar_nav():
-    """
-    Display the left navigation sidebar.
-    Allows user to switch between different pages:
-    - Home (Dashboard)
-    - Inventory
-    - Add Books
-    - Search & Borrow
-    - Returns & Fees
-    """
+    """MANDATORY: Display the left navigation sidebar with page navigation buttons."""
     with st.sidebar:
         st.markdown(
-            '<div style="display:flex;align-items:center;gap:10px;padding:4px 4px 10px;">'
+            '<div style="display:flex;align-items:center;gap:10px;padding:4px 4px 10px;"'
             '<span style="font-size:22px;line-height:1;">📚</span>'
             '<div>'
             '<p style="font-size:13px;font-weight:700;color:#D8F3DC;margin:0;'
@@ -840,32 +836,35 @@ def sidebar_nav():
             'letter-spacing:1.3px;text-transform:uppercase;padding:0 4px 6px;">Navigation</div>',
             unsafe_allow_html=True
         )
-
-        # Define the navigation menu items
+        
         pages = [
-            ("Home",      "🏠", "Dashboard"),             # Label, Icon, Page key
-            ("Inventory",      "📦", "Inventory"),
-            ("Add Books",      "➕", "Add Books"),
-            ("Search & Borrow","🔍", "Search & Borrow"),
-            ("Returns & Fees", "↩️",  "Returns & Fees"),
+            ("Home", "🏠", "Dashboard"),
+            ("Inventory", "📦", "Inventory"),
+            ("Add Books", "➕", "Add Books"),
+            ("Search & Borrow", "🔍", "Search & Borrow"),
+            ("Returns & Fees", "↩️", "Returns & Fees"),
         ]
-
-        # Create buttons for each page
+        
         for label, icon, key in pages:
-            active = st.session_state.page == key  # Is this the current page?
+            active = st.session_state.page == key
             if st.button(
                 f"{icon}  {label}",
                 key="nav_" + key,
-                help=key,
-                type="primary" if active else "secondary",  # Highlight current page
+                type="primary" if active else "secondary",
                 use_container_width=True,
             ):
-                # Switch to this page when button is clicked
-                st.session_state.page           = key
-                st.session_state.confirm_add    = False
+                st.session_state.page = key
+                st.session_state.confirm_add = False
                 st.session_state.confirm_borrow = False
                 st.session_state.confirm_return = False
-                st.rerun()  # Refresh the page
+                st.rerun()
+        
+        st.markdown(
+            f'<div style="position:fixed;bottom:16px;left:0;width:200px;text-align:center;'
+            f'font-size:9px;color:rgba(116,198,157,0.25);font-family:Inter,sans-serif;">'
+            f'{datetime.now().year}</div>',
+            unsafe_allow_html=True
+        )
 
         st.markdown(
             f'<div style="position:fixed;bottom:16px;left:0;width:200px;text-align:center;'
@@ -877,31 +876,44 @@ def sidebar_nav():
 # ─────────────────────────────────────────────────────────────────────────────
 # MAIN FUNCTION - Routing and page selection
 # ─────────────────────────────────────────────────────────────────────────────
-# This is the main control center that shows the right page based on selection
+# MANDATORY: This is the main control center that shows the right page based on selection
+# Handles error checking, database verification, and page routing logic
 
 def main():
     """
-    Main function that controls which page to show.
+    MANDATORY: Main function that controls which page to show.
     First checks if database is connected, then displays the selected page.
+    
+    This function is the entry point for the entire application and manages:
+    1. Database connection verification
+    2. Page routing logic based on user selection
+    3. Error handling and user feedback
     """
-    # Check if database connection is working
+    # MANDATORY: Check if database connection is working
+    # If connection failed, show error message and stop execution
     if not st.session_state.get("db_ok", False):
         st.error("Database connection failed: " + st.session_state.get("db_error", "Unknown"))
         st.info("Ensure serviceAccountKey.json is present and Firestore is enabled.")
-        return
+        return  # Stop execution - cannot proceed without database
 
-    # Show the sidebar navigation menu
+    # MANDATORY: Show the sidebar navigation menu
+    # This displays all available pages for user to choose from
     sidebar_nav()
-    lib  = st.session_state.lib    # Get the database connection
-    page = st.session_state.page   # Get the current page user is on
+    
+    # MANDATORY: Get the library manager instance from session state
+    lib  = st.session_state.lib
+    
+    # MANDATORY: Get the current page the user is viewing
+    page = st.session_state.page
 
-    # Display the appropriate page based on selection
-    # Each page is defined below with clear section headers showing which sidebar page it is
-    if   page == "Dashboard":       page_dashboard(lib)      # 🏠 HOME PAGE (see line ~890)
-    elif page == "Inventory":       page_inventory(lib)      # 📦 INVENTORY PAGE (see line ~1120)
-    elif page == "Add Books":       page_add_books(lib)      # ➕ ADD BOOKS PAGE (see line ~1208)
-    elif page == "Search & Borrow": page_search(lib)        # 🔍 SEARCH & BORROW PAGE (see line ~1328)
-    elif page == "Returns & Fees":  page_returns(lib)       # ↩️ RETURNS & FEES PAGE (see line ~1459)
+    # MANDATORY: Display the appropriate page based on user selection
+    # Each page is defined below with clear section headers
+    # This is the core page routing logic
+    if   page == "Dashboard":       page_dashboard(lib)      # 🏠 HOME PAGE
+    elif page == "Inventory":       page_inventory(lib)      # 📦 INVENTORY PAGE
+    elif page == "Add Books":       page_add_books(lib)      # ➕ ADD BOOKS PAGE
+    elif page == "Search & Borrow": page_search(lib)        # 🔍 SEARCH & BORROW PAGE
+    elif page == "Returns & Fees":  page_returns(lib)       # ↩️ RETURNS & FEES PAGE
 
 
 # ═════════════════════════════════════════════════════════════════════════════════════
@@ -1882,13 +1894,13 @@ def page_search(lib):
 
     s1, s2, s3 = st.columns([5, 1.5, 1])
     with s1:
-        query = st.text_input("q", placeholder="Enter book title or author name…", label_visibility="collapsed")
+        query = st.text_input("q", placeholder="Enter book title, author, or ISBN…", label_visibility="collapsed")
     with s2:
-        by = st.selectbox("by", ["By Title", "By Author"], label_visibility="collapsed")
+        by = st.selectbox("by", ["By Title", "By Author", "By ISBN"], label_visibility="collapsed")
     with s3:
         go = st.button("Search →", type="primary", use_container_width=True)
 
-    search_by = "title" if "Title" in by else "author"
+    search_by = "title" if "Title" in by else ("author" if "Author" in by else "isbn")
 
     if not (go or query):
         st.markdown("""
@@ -1904,7 +1916,12 @@ def page_search(lib):
         st.warning("Please enter a search term."); return
 
     try:
-        results = lib.search_book(query.strip(), search_by=search_by)
+        # MANDATORY: Handle ISBN searches with or without dashes/spaces
+        if search_by == "isbn":
+            results = lib.search_books_by_isbn(query.strip())
+        else:
+            results = lib.search_book(query.strip(), search_by=search_by)
+        
         if not results:
             st.info(f"No books found for '{query}'. Try a different keyword."); return
 
@@ -1980,7 +1997,7 @@ def page_search(lib):
                             st.session_state.wishlist.append(wishlist_item)
                             
                             # STEP 3: Show confirmation message
-                            st.success(f"📚 '{book['title']}' added to your wishlist!", icon="✓")
+                            st.success(f"✅ '{book['title']}' added to your wishlist!")
                             st.rerun()
             card_close()
     except Exception:
@@ -2186,12 +2203,43 @@ Thank you for returning on time!
                 bk = lib.get_book_by_isbn(isbn)
                 trans = lib.get_transaction_history()
                 
-                # Find the relevant transaction
+                if not bk:
+                    st.error(f"❌ Book not found with ISBN: {isbn}")
+                    st.info("Make sure the ISBN is correct and exists in the database.")
+                    if st.button("Back", use_container_width=True):
+                        st.session_state.confirm_return = False
+                        st.rerun()
+                    return
+                
+                # MANDATORY: Normalize ISBN for flexible matching (handles dashes/spaces)
+                def normalize_isbn(isbn_str):
+                    """Remove dashes and spaces from ISBN for comparison"""
+                    return str(isbn_str).replace("-", "").replace(" ", "").strip().lower()
+                
+                normalized_input_isbn = normalize_isbn(isbn)
+                normalized_borrower = bname.strip().lower()
+                
+                # Find the relevant transaction with normalized ISBN matching
                 target_trans = None
                 for t in trans:
-                    if t.get("isbn") == isbn and t.get("borrower_name") == bname and not t.get("return_date"):
+                    trans_isbn = normalize_isbn(t.get("isbn", ""))
+                    trans_borrower = t.get("borrower_name", "").strip().lower()
+                    
+                    # Match if normalized ISBN and borrower name match, and book hasn't been returned yet
+                    if trans_isbn == normalized_input_isbn and trans_borrower == normalized_borrower and not t.get("return_date"):
                         target_trans = t
                         break
+                
+                if not target_trans:
+                    st.error(f"❌ No active borrow record found")
+                    st.info(f"Searched for:")
+                    st.info(f"  • ISBN: {isbn}")
+                    st.info(f"  • Borrower: {bname}")
+                    st.info(f"This book may have already been returned, or the borrower name might be different.")
+                    if st.button("Back", use_container_width=True):
+                        st.session_state.confirm_return = False
+                        st.rerun()
+                    return
                 
                 if target_trans and bk:
                     # STEP 2: Calculate fee details
